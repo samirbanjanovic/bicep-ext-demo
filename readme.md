@@ -1,94 +1,37 @@
-# How to Debug Bicep Extensions
+# Bicep Extension Debugging Guide
 
-A comprehensive guide for developers on locally debugging Bicep extensions using gRPC reflection and HTTP mode.
+Debug Bicep extensions locally using gRPC reflection and HTTP mode.
 
----
+## Quick Start
 
-## Overview
+```bash
+# 1. Set environment & start extension
+export ASPNETCORE_ENVIRONMENT=Development
+dotnet run --project ./MyExtension.csproj -- --http 5001
 
-Bicep extensions expose a gRPC-based API that allows the Bicep runtime to interact with custom resource types. During development, you can run your extension in **HTTP mode** to enable direct interaction with the gRPC endpoints using tools like [grpcurl](https://github.com/fullstorydev/grpcurl). This guide covers the available endpoints, request/response contracts, and step-by-step debugging instructions.
+# 2. Verify it's running
+grpcurl -plaintext localhost:5001 extension.BicepExtension/Ping
 
----
+# 3. Test a request
+grpcurl -plaintext -d '{"type":"MyResource","properties":"{}","config":"{}"}' \
+  localhost:5001 extension.BicepExtension/CreateOrUpdate
+```
 
 ## Prerequisites
 
-Before getting started, ensure you have the following installed:
-
-- **.NET 9 SDK** or later
-- **grpcurl** – Install from [grpcurl releases](https://github.com/fullstorydev/grpcurl/releases) or via package managers:
-  - **Windows (Chocolatey):** `choco install grpcurl`
-  - **macOS (Homebrew):** `brew install grpcurl`
-  - **Linux:** Download binary from releases
-- **Bicep CLI** version 0.37.4 or later
-- Your Bicep extension project
+| Tool | Install |
+|------|---------|
+| .NET 9 SDK | [dotnet.microsoft.com](https://dotnet.microsoft.com/download) |
+| grpcurl | `choco install grpcurl` (Win) / `brew install grpcurl` (Mac) |
+| Bicep CLI | v0.37.4+ |
 
 ---
 
-## Starting Your Extension in HTTP Mode
+## IDE Setup
 
-To enable HTTP-based gRPC communication for debugging, start your extension with the `--http` flag:
+### Visual Studio
 
-```powershell
-# Windows PowerShell
-dotnet run --project .\MyExtension.csproj -- --http 5001
-```
-
-```bash
-# macOS/Linux
-dotnet run --project ./MyExtension.csproj -- --http 5001
-```
-
-### Startup Options
-
-Your extension supports three communication modes:
-
-| Option | Description | Example |
-|--------|-------------|---------|
-| `--http <port>` | TCP port (1-65535) for HTTP/2 gRPC | `--http 5001` |
-| `--socket <path>` | Unix domain socket path | `--socket /tmp/bicep-ext.sock` |
-| `--pipe <name>` | Named pipe for Windows IPC | `--pipe bicep-extension-pipe` |
-
-> **Note:** Only one option can be specified at a time.
-
----
-
-## Enabling gRPC Reflection
-
-gRPC reflection is automatically enabled when your extension runs in **Development mode**. Set the `ASPNETCORE_ENVIRONMENT` environment variable before starting:
-
-```powershell
-# Windows PowerShell
-$env:ASPNETCORE_ENVIRONMENT = "Development"
-dotnet run --project .\MyExtension.csproj -- --http 5001
-```
-
-```bash
-# macOS/Linux
-export ASPNETCORE_ENVIRONMENT=Development
-dotnet run --project ./MyExtension.csproj -- --http 5001
-```
-
-### Enabling Trace Logging
-
-For detailed request/response logging, enable tracing:
-
-```powershell
-# Windows PowerShell
-$env:BICEP_TRACING_ENABLED = $true
-```
-
-```bash
-# macOS/Linux
-export BICEP_TRACING_ENABLED=true
-```
-
----
-
-## Configuring Your IDE for Debugging
-
-### Visual Studio Configuration
-
-1. **Create or update `Properties/launchSettings.json`** in your extension project:
+Create `Properties/launchSettings.json`:
 
 ```json
 {
@@ -122,13 +65,11 @@ export BICEP_TRACING_ENABLED=true
 }
 ```
 
-2. **Select the debug profile**:
-   - In Visual Studio, use the dropdown next to the Start button to select "Debug HTTP Mode"
-   - Press **F5** to start debugging
+Select profile from dropdown → **F5** to debug.
 
-### Visual Studio Code Configuration
+### VS Code
 
-1. **Create or update `.vscode/launch.json`** in your project root:
+Create `.vscode/launch.json`:
 
 ```json
 {
@@ -143,7 +84,6 @@ export BICEP_TRACING_ENABLED=true
       "args": ["--http", "5001"],
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
-      "stopAtEntry": false,
       "env": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "BICEP_TRACING_ENABLED": "true"
@@ -158,7 +98,6 @@ export BICEP_TRACING_ENABLED=true
       "args": ["--pipe", "bicep-ext-debug"],
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
-      "stopAtEntry": false,
       "env": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "BICEP_TRACING_ENABLED": "true"
@@ -173,7 +112,6 @@ export BICEP_TRACING_ENABLED=true
       "args": ["--socket", "/tmp/bicep-ext-debug.sock"],
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
-      "stopAtEntry": false,
       "env": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "BICEP_TRACING_ENABLED": "true"
@@ -189,7 +127,7 @@ export BICEP_TRACING_ENABLED=true
 }
 ```
 
-2. **Create or update `.vscode/tasks.json`** for the build task:
+Create `.vscode/tasks.json`:
 
 ```json
 {
@@ -211,89 +149,41 @@ export BICEP_TRACING_ENABLED=true
 }
 ```
 
-3. **Start debugging**:
-   - Open the Run and Debug panel (**Ctrl+Shift+D** / **Cmd+Shift+D**)
-   - Select "Debug Extension (HTTP)" from the dropdown
-   - Press **F5** to start debugging
+Open Run and Debug (**Ctrl+Shift+D**) → Select config → **F5**.
 
----
+### Command Line
 
-## Debugging Workflow
-
-1. **Start the debugger** (F5) with the HTTP profile selected
-2. **Set breakpoints** in your handler methods
-3. **Send a request** using grpcurl from a terminal:
+```powershell
+# Windows PowerShell
+$env:ASPNETCORE_ENVIRONMENT = "Development"
+$env:BICEP_TRACING_ENABLED = $true
+dotnet run --project .\MyExtension.csproj -- --http 5001
+```
 
 ```bash
-grpcurl -plaintext -d '{
-  "type": "MyResource",
-  "properties": "{\"name\": \"test\", \"operation\": \"Uppercase\"}",
-  "config": "{}"
-}' localhost:5001 extension.BicepExtension/CreateOrUpdate
+# macOS/Linux
+export ASPNETCORE_ENVIRONMENT=Development
+export BICEP_TRACING_ENABLED=true
+dotnet run --project ./MyExtension.csproj -- --http 5001
 ```
 
-1. **Step through the code** using:
-   - **F10** - Step Over
-   - **F11** - Step Into
-   - **Shift+F11** - Step Out
-   - **F5** - Continue
+### Startup Options
 
-2. **Inspect variables** in the debugger:
-   - `request.Type` - The resource type being requested
-   - `request.Properties` - The JSON properties string
-   - `request.Config` - Extension configuration
-   - `context.CancellationToken` - For timeout handling
-
----
-
-## Using grpcurl for Debugging
-
-Once your extension is running in HTTP mode with reflection enabled, you can interact with it using grpcurl.
-
-### Discover Available Services
-
-```bash
-grpcurl -plaintext localhost:5001 list
-```
-
-**Expected output:**
-
-```
-extension.BicepExtension
-grpc.reflection.v1alpha.ServerReflection
-```
-
-### Describe the BicepExtension Service
-
-```bash
-grpcurl -plaintext localhost:5001 describe extension.BicepExtension
-```
-
-**Expected output:**
-
-```protobuf
-extension.BicepExtension is a service:
-service BicepExtension {
-  rpc CreateOrUpdate ( .extension.ResourceSpecification ) returns ( .extension.LocalExtensibilityOperationResponse );
-  rpc Delete ( .extension.ResourceReference ) returns ( .extension.LocalExtensibilityOperationResponse );
-  rpc Get ( .extension.ResourceReference ) returns ( .extension.LocalExtensibilityOperationResponse );
-  rpc GetTypeFiles ( .extension.Empty ) returns ( .extension.TypeFilesResponse );
-  rpc Ping ( .extension.Empty ) returns ( .extension.Empty );
-  rpc Preview ( .extension.ResourceSpecification ) returns ( .extension.LocalExtensibilityOperationResponse );
-}
-```
+| Option | Description | Example |
+|--------|-------------|---------|
+| `--http <port>` | HTTP/2 gRPC on TCP port | `--http 5001` |
+| `--socket <path>` | Unix domain socket | `--socket /tmp/ext.sock` |
+| `--pipe <name>` | Windows named pipe | `--pipe bicep-ext-pipe` |
 
 ---
 
 ## gRPC Service Contract
 
-The Bicep extension service is defined by the following protobuf contract:
+### Service Definition
 
 ```protobuf
 syntax = "proto3";
-
 option csharp_namespace = "Bicep.Local.Rpc";
-
 package extension;
 
 service BicepExtension {
@@ -308,9 +198,7 @@ service BicepExtension {
 
 ### Message Types
 
-#### ResourceSpecification
-
-Used for `CreateOrUpdate` and `Preview` operations:
+#### ResourceSpecification (CreateOrUpdate, Preview)
 
 ```protobuf
 message ResourceSpecification {
@@ -321,9 +209,7 @@ message ResourceSpecification {
 }
 ```
 
-#### ResourceReference
-
-Used for `Get` and `Delete` operations:
+#### ResourceReference (Get, Delete)
 
 ```protobuf
 message ResourceReference {
@@ -335,8 +221,6 @@ message ResourceReference {
 ```
 
 #### LocalExtensibilityOperationResponse
-
-Returned by all resource operations:
 
 ```protobuf
 message LocalExtensibilityOperationResponse {
@@ -373,8 +257,6 @@ message ErrorDetail {
 
 #### TypeFilesResponse
 
-Returned by `GetTypeFiles`:
-
 ```protobuf
 message TypeFilesResponse {
   string indexFile = 1;            // Type index content
@@ -384,211 +266,7 @@ message TypeFilesResponse {
 
 ---
 
-## Endpoint Reference & Examples
-
-### 1. Ping
-
-Health check endpoint to verify the extension is running.
-
-```bash
-grpcurl -plaintext localhost:5001 extension.BicepExtension/Ping
-```
-
-**Expected output:**
-
-```json
-{}
-```
-
----
-
-### 2. GetTypeFiles
-
-Retrieves type definitions exposed by the extension.
-
-```bash
-grpcurl -plaintext localhost:5001 extension.BicepExtension/GetTypeFiles
-```
-
-**Expected output:**
-
-```json
-{}
-```
-
----
-
-### 3. CreateOrUpdate
-
-Creates or updates a resource.
-
-```bash
-grpcurl -plaintext -d '{
-  "type": "echo",
-  "properties": "{\"payload\": \"Hello, World!\"}",
-  "config": "{}"
-}' localhost:5001 extension.BicepExtension/CreateOrUpdate
-```
-
-**Expected output:**
-
-```json
-{
-  "resource": {
-    "type": "echo",
-    "identifiers": "{}",
-    "properties": "{\"payload\":\"Hello, World!\"}"
-  }
-}
-```
-
-#### Example with API Version
-
-```bash
-grpcurl -plaintext -d '{
-  "type": "MyResource",
-  "apiVersion": "2024-01-01",
-  "properties": "{\"name\": \"test-resource\", \"operation\": \"Uppercase\"}",
-  "config": "{}"
-}' localhost:5001 extension.BicepExtension/CreateOrUpdate
-```
-
----
-
-### 4. Preview
-
-Previews what a resource deployment would look like without actually deploying.
-
-```bash
-grpcurl -plaintext -d '{
-  "type": "MyResource",
-  "properties": "{\"name\": \"preview-test\", \"operation\": \"Reverse\"}",
-  "config": "{}"
-}' localhost:5001 extension.BicepExtension/Preview
-```
-
-**Expected output:**
-
-```json
-{
-  "resource": {
-    "type": "MyResource",
-    "identifiers": "{\"name\":\"preview-test\"}",
-    "properties": "{\"name\":\"preview-test\",\"operation\":\"Reverse\"}"
-  }
-}
-```
-
----
-
-### 5. Get
-
-Retrieves an existing resource by its identifiers.
-
-```bash
-grpcurl -plaintext -d '{
-  "type": "MyResource",
-  "identifiers": "{\"name\": \"my-resource-name\"}",
-  "config": "{}"
-}' localhost:5001 extension.BicepExtension/Get
-```
-
-**Expected response (if implemented):**
-
-```json
-{
-  "resource": {
-    "type": "MyResource",
-    "identifiers": "{\"name\":\"my-resource-name\"}",
-    "properties": "{...}"
-  }
-}
-```
-
-**Error response (if not implemented):**
-
-```json
-{
-  "errorData": {
-    "error": {
-      "code": "NotImplemented",
-      "message": "Operation 'MyResourceHandler.Get' has not been implemented."
-    }
-  }
-}
-```
-
----
-
-### 6. Delete
-
-Deletes a resource by its identifiers.
-
-```bash
-grpcurl -plaintext -d '{
-  "type": "MyResource",
-  "identifiers": "{\"name\": \"resource-to-delete\"}",
-  "config": "{}"
-}' localhost:5001 extension.BicepExtension/Delete
-```
-
----
-
-## Common Debugging Scenarios
-
-### Scenario 1: Handler Not Registered
-
-If you invoke an endpoint for a resource type that doesn't have a registered handler:
-
-```bash
-grpcurl -plaintext -d '{
-  "type": "UnknownType",
-  "properties": "{}",
-  "config": "{}"
-}' localhost:5001 extension.BicepExtension/CreateOrUpdate
-```
-
-**Response:**
-
-```json
-{
-  "errorData": {
-    "error": {
-      "code": "HandlerNotRegistered",
-      "message": "No handler registered for type 'UnknownType'."
-    }
-  }
-}
-```
-
-### Scenario 2: Describe Message Types
-
-To understand the structure of request/response messages:
-
-```bash
-# Describe ResourceSpecification
-grpcurl -plaintext localhost:5001 describe extension.ResourceSpecification
-
-# Describe LocalExtensibilityOperationResponse
-grpcurl -plaintext localhost:5001 describe extension.LocalExtensibilityOperationResponse
-```
-
-### Scenario 3: JSON Property Formatting
-
-When sending JSON strings within grpcurl, ensure proper escaping:
-
-```bash
-# Properties and identifiers are JSON strings, so inner quotes must be escaped
-grpcurl -plaintext -d '{
-  "type": "MyResource",
-  "properties": "{\"name\": \"test\", \"nested\": {\"key\": \"value\"}}",
-  "config": "{}"
-}' localhost:5001 extension.BicepExtension/CreateOrUpdate
-```
-
----
-
-## Quick Reference Card
+## Quick Reference
 
 | Action | Command |
 |--------|---------|
@@ -603,27 +281,219 @@ grpcurl -plaintext -d '{
 
 ---
 
+## Endpoint Examples
+
+### Ping
+```bash
+grpcurl -plaintext localhost:5001 extension.BicepExtension/Ping
+# Output: {}
+```
+
+### GetTypeFiles
+```bash
+grpcurl -plaintext localhost:5001 extension.BicepExtension/GetTypeFiles
+# Output: {}
+```
+
+### CreateOrUpdate
+```bash
+grpcurl -plaintext -d '{
+  "type": "echo",
+  "properties": "{\"payload\": \"Hello, World!\"}",
+  "config": "{}"
+}' localhost:5001 extension.BicepExtension/CreateOrUpdate
+```
+```json
+{
+  "resource": {
+    "type": "echo",
+    "identifiers": "{}",
+    "properties": "{\"payload\":\"Hello, World!\"}"
+  }
+}
+```
+
+### Preview
+```bash
+grpcurl -plaintext -d '{
+  "type": "MyResource",
+  "properties": "{\"name\": \"preview-test\"}",
+  "config": "{}"
+}' localhost:5001 extension.BicepExtension/Preview
+```
+
+### Get
+```bash
+grpcurl -plaintext -d '{
+  "type": "MyResource",
+  "identifiers": "{\"name\": \"my-resource\"}",
+  "config": "{}"
+}' localhost:5001 extension.BicepExtension/Get
+```
+
+### Delete
+```bash
+grpcurl -plaintext -d '{
+  "type": "MyResource",
+  "identifiers": "{\"name\": \"resource-to-delete\"}",
+  "config": "{}"
+}' localhost:5001 extension.BicepExtension/Delete
+```
+
+---
+
+## Debugging Workflow
+
+1. **Set breakpoints** in handler methods
+2. **Start debugger** (F5) with HTTP profile
+3. **Send request** via grpcurl from terminal
+4. **Step through code**:
+   - **F10** - Step Over
+   - **F11** - Step Into
+   - **Shift+F11** - Step Out
+   - **F5** - Continue
+5. **Inspect variables**:
+   - `request.Type` - Resource type
+   - `request.Properties` - JSON properties string
+   - `request.Config` - Extension configuration
+   - `context.CancellationToken` - Timeout handling
+
+### Discovering Services
+
+```bash
+# List all available services
+grpcurl -plaintext localhost:5001 list
+
+# Output:
+# extension.BicepExtension
+# grpc.reflection.v1alpha.ServerReflection
+
+# Describe service methods
+grpcurl -plaintext localhost:5001 describe extension.BicepExtension
+
+# Describe message types
+grpcurl -plaintext localhost:5001 describe extension.ResourceSpecification
+```
+
+---
+
+## Test Automation Scripts
+
+### PowerShell (Windows)
+
+```powershell
+# test-extension.ps1
+$env:ASPNETCORE_ENVIRONMENT = "Development"
+$port = 5001
+
+Write-Host "Starting extension..." -ForegroundColor Green
+$job = Start-Job { dotnet run --project .\MyExtension.csproj -- --http 5001 }
+Start-Sleep -Seconds 3
+
+@(
+    @{Cmd="Ping"; Data=$null; Desc="Health Check"}
+    @{Cmd="GetTypeFiles"; Data=$null; Desc="Get Types"}
+    @{Cmd="CreateOrUpdate"; Data='{"type":"MyResource","properties":"{}","config":"{}"}'; Desc="Create"}
+    @{Cmd="Get"; Data='{"type":"MyResource","identifiers":"{}","config":"{}"}'; Desc="Get"}
+) | ForEach-Object {
+    Write-Host "`n$($_.Desc):" -ForegroundColor Yellow
+    if ($_.Data) {
+        grpcurl -plaintext -d $_.Data localhost:$port extension.BicepExtension/$($_.Cmd)
+    } else {
+        grpcurl -plaintext localhost:$port extension.BicepExtension/$($_.Cmd)
+    }
+}
+
+Write-Host "`nPress any key to stop..." -ForegroundColor Red
+$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+Stop-Job $job; Remove-Job $job
+```
+
+### Bash (macOS/Linux)
+
+```bash
+#!/bin/bash
+# test-extension.sh
+export ASPNETCORE_ENVIRONMENT=Development
+PORT=5001
+
+echo -e "\033[0;32mStarting extension...\033[0m"
+dotnet run --project ./MyExtension.csproj -- --http $PORT &
+PID=$!
+sleep 3
+
+echo -e "\n\033[1;33mHealth Check:\033[0m"
+grpcurl -plaintext localhost:$PORT extension.BicepExtension/Ping
+
+echo -e "\n\033[1;33mGet Types:\033[0m"
+grpcurl -plaintext localhost:$PORT extension.BicepExtension/GetTypeFiles
+
+echo -e "\n\033[1;33mCreate Resource:\033[0m"
+grpcurl -plaintext -d '{"type":"MyResource","properties":"{}","config":"{}"}' \
+  localhost:$PORT extension.BicepExtension/CreateOrUpdate
+
+echo -e "\n\033[1;33mGet Resource:\033[0m"
+grpcurl -plaintext -d '{"type":"MyResource","identifiers":"{}","config":"{}"}' \
+  localhost:$PORT extension.BicepExtension/Get
+
+echo -e "\n\033[0;31mPress any key to stop...\033[0m"
+read -n 1 -s
+kill $PID
+```
+
+---
+
+## Common Scenarios
+
+### Handler Not Registered
+```bash
+grpcurl -plaintext -d '{"type":"UnknownType","properties":"{}","config":"{}"}' \
+  localhost:5001 extension.BicepExtension/CreateOrUpdate
+```
+```json
+{
+  "errorData": {
+    "error": {
+      "code": "HandlerNotRegistered",
+      "message": "No handler registered for type 'UnknownType'."
+    }
+  }
+}
+```
+
+### JSON Escaping
+Properties and identifiers are JSON strings—escape inner quotes:
+```bash
+grpcurl -plaintext -d '{
+  "type": "MyResource",
+  "properties": "{\"name\": \"test\", \"nested\": {\"key\": \"value\"}}",
+  "config": "{}"
+}' localhost:5001 extension.BicepExtension/CreateOrUpdate
+```
+
+---
+
 ## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
-| "Failed to dial target host" | Ensure extension is running and port is correct |
-| "reflection: rpc error: code = Unimplemented" | Set `ASPNETCORE_ENVIRONMENT=Development` |
-| "No handler registered for type" | Verify resource type name matches your handler registration |
-| Malformed JSON in properties | Ensure proper escaping of quotes in JSON strings |
-| Connection refused | Check if another process is using the port |
-| Breakpoints not hitting | Ensure you're running in Debug configuration, not Release |
-| launchSettings.json not recognized | Ensure file is in `Properties/` folder for Visual Studio |
+| "Failed to dial target host" | Check extension is running on correct port |
+| "Unimplemented" reflection error | Set `ASPNETCORE_ENVIRONMENT=Development` |
+| "No handler registered" | Verify resource type matches handler registration |
+| Malformed JSON | Escape inner quotes: `"{\"key\": \"value\"}"` |
+| Connection refused | Check port isn't used by another process |
+| Breakpoints not hitting | Use Debug config, not Release |
+| launchSettings.json ignored | Must be in `Properties/` folder |
 
 ---
 
-## Additional Resources
+## Resources
 
-- [Bicep Local Deploy Documentation](https://github.com/Azure/bicep/blob/main/docs/experimental/local-deploy.md)
-- [Creating a Local Extension with .NET](https://github.com/Azure/bicep/blob/main/docs/experimental/local-deploy-dotnet-quickstart.md)
-- [gRPC Contract Definition](https://github.com/Azure/bicep/blob/main/src/Bicep.Local.Rpc/extension.proto)
+- [Bicep Local Deploy](https://github.com/Azure/bicep/blob/main/docs/experimental/local-deploy.md)
+- [.NET Extension Quickstart](https://github.com/Azure/bicep/blob/main/docs/experimental/local-deploy-dotnet-quickstart.md)
+- [gRPC Proto Definition](https://github.com/Azure/bicep/blob/main/src/Bicep.Local.Rpc/extension.proto)
 - [grpcurl Documentation](https://github.com/fullstorydev/grpcurl#readme)
 
 ---
 
-*For questions or issues, please file an issue on the [Bicep GitHub repository](https://github.com/Azure/bicep/issues).*
+*Questions? File an issue on the [Bicep GitHub repository](https://github.com/Azure/bicep/issues).*
