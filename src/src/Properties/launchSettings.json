@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "Bicep.Extension.Demo": {
+      "commandName": "Project",
+      "commandLineArgs": "--http 5001",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "BICEP_TRACING_ENABLED": "true"
+      }
+    }
+  }
+}
