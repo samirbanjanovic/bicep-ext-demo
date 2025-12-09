@@ -298,8 +298,6 @@ This opens an interactive web interface where you can:
    - `config`: `{}`
 4. **Click Invoke**: View the response in the right panel
 
-![grpcui workflow](https://user-images.githubusercontent.com/example/grpcui-screenshot.png)
-
 #### grpcui vs grpcurl
 
 | Feature | grpcui | grpcurl |
